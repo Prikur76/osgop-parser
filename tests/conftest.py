@@ -1,5 +1,16 @@
+import os
+import sys
 import pytest
+
 from unittest.mock import patch
+
+
+# Абсолютный путь к корневой директории проекта
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+# Добавляем его в PYTHONPATH
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 
 @pytest.fixture(autouse=True)
