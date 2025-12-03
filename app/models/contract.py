@@ -1,41 +1,39 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Dict, Any
 
 
 class VehicleInfo(BaseModel):
-    """Базовая информация о транспортном средстве"""
-    vehicle_plate: str
-    vin: Optional[str] = None
-    
-    # Дополнительные поля из API 1С
-    car_info: Optional[Dict[str, Any]] = None
-    
-    class Config:
-        json_encoders = {}
+    """Информация о транспортном средстве"""
+    vehicle_plate_cyr: str = Field(..., description="Госномер в кириллице")
+    vehicle_plate_lat: str = Field(..., description="Госномер в латинице (нормализованный)")
+    vin: str | None = Field(None, description="VIN номер")
+    car_info: Optional[Dict[str, Any]] = Field(None, description="Информация из API: марка, модель, год")
 
 
 class OSGOPContract(BaseModel):
-    """Основная модель полиса ОСГОП"""
-    contract_number: str
-    contract_date: Optional[str] = None
-    period_from: Optional[str] = None
-    period_to: Optional[str] = None
+    """Модель полиса ОСГОП"""
+    contract_number: str = Field(..., description="Номер полиса ROSX...")
+    contract_date: str | None = Field(None, description="Дата заключения договора")
+    period_from: str | None = Field(None, description="Начало действия")
+    period_to: str | None = Field(None, description="Окончание действия")
+    insurer: str | None = Field(None, description="Страховщик")
+    insurer_inn: str | None = Field(None, description="ИНН страховщика")
+    insured: str | None = Field(None, description="Страхователь")
+    insured_inn: str | None = Field(None, description="ИНН страхователя")
+    bonus: float | None = Field(None, description="Страховая премия")
+    vehicles: List[VehicleInfo] = Field(default_factory=list, description="Список ТС")
     
-    insurer: Optional[str] = None
-    insurer_inn: Optional[str] = None
-    
-    insured: Optional[str] = None
-    insured_inn: Optional[str] = None
-    
-    premium: Optional[float] = None
-    
-    vehicles: List[VehicleInfo] = []
+    model_config = ConfigDict(
+        json_encoders = {
+            float: lambda v: round(v, 2) if v else None
+        },
+    )
     
     # Методы для удобства
     def get_vehicle_by_plate(self, plate: str) -> Optional[VehicleInfo]:
         """Находит транспортное средство по госномеру"""
         for vehicle in self.vehicles:
-            if vehicle.vehicle_plate.upper() == plate.upper():
+            if vehicle.vehicle_plate_cyr.upper() == plate.upper():
                 return vehicle
         return None
     
