@@ -1,5 +1,5 @@
 fastapi
 uvicorn[standard]
-PyPDF2
+pypdf
 pdfminer.six
 polars
