@@ -14,7 +14,7 @@ TEXT = """
 
 def test_inn_extraction():
     p = OSGOPParser()
-    insurer_inn, insured_inn = p._extract_inns(TEXT)
+    insurer_inn, insured_inn = p._parse_polis_header(TEXT)
 
     assert insurer_inn == "7702073683"
     assert insured_inn == "7721751172"

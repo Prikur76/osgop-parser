@@ -8,6 +8,6 @@ TEXT = """
 
 def test_plate_extraction():
     p = OSGOPParser()
-    plate = p._extract_plate_from_appendix(TEXT)
+    plate = p._parse_svedeniya(TEXT)
 
     assert plate == "A225PH797"
