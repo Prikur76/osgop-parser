@@ -1,5 +1,5 @@
 from io import BytesIO
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from pathlib import Path
 import logging
 

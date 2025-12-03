@@ -80,8 +80,7 @@ class CarApiClient:
             response.raise_for_status()
             
             cars = response.json()
-            logger.info(cars)
-            
+
             # Проверяем формат ответа
             if not isinstance(cars, list):
                 logger.error(f"Некорректный формат ответа API: {type(cars)}")
@@ -229,14 +228,12 @@ class CarApiClient:
         # Извлекаем полезные поля из ответа API
         return {
             'vin': car.get('VIN', '').strip(),
-            'sts_series': car.get('STSSeries', '').strip(),
-            'sts_number': car.get('STSNumber', '').strip(),
+            'sts_series': car.get('STSSeries', ''),
+            'sts_number': car.get('STSNumber', ''),
             'model': car.get('Model', '').strip(),
-            'brand': car.get('Brand', '').strip(),
             'year': car.get('YearCar', '').split('T')[0] if car.get('YearCar') else None,
-            'status': car.get('Status', '').strip(),
+            'status': car.get('Status', ''),
             'activity': car.get('Activity', False),
-            'plate': car.get('Number', '').strip()
         }
 
     def validate_plate(self, plate: str) -> bool:
