@@ -9,12 +9,12 @@ class Config:
     DEBUG = True
     
     # API 1С настройки
-    API_1C_BASE_URL = env.str("API_1C_BASE_URL")
-    API_1C_USERNAME = env.str("API_1C_USERNAME")
-    API_1C_PASSWORD = env.str("API_1C_PASSWORD")
-    API_1C_ENABLED = env.bool("API_1C_ENABLED")
-    API_1C_TIMEOUT = env.float("API_1C_TIMEOUT")
-    API_1C_VERIFY_SSL = env.bool("API_1C_VERIFY_SSL")
+    ELEMENT_BASE_URL = env.str("ELEMENT_BASE_URL")
+    ELEMENT_USERNAME = env.str("ELEMENT_USERNAME")
+    ELEMENT_PASSWORD = env.str("ELEMENT_PASSWORD")
+    ELEMENT_ENABLED = env.bool("ELEMENT_ENABLED")
+    ELEMENT_TIMEOUT = env.float("ELEMENT_TIMEOUT")
+    ELEMENT_VERIFY_SSL = env.bool("ELEMENT_VERIFY_SSL")
 
 
 config = Config()
