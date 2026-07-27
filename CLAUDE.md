@@ -68,5 +68,5 @@ FastAPI-микросервис для парсинга PDF-документов 
 ## Запуск тестов
 
 ```bash
-pytest tests/ -v
+uv run pytest tests/ -v
 ```

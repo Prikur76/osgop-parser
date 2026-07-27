@@ -11,9 +11,8 @@ FastAPI-микросервис для автоматического извле�
 ```bash
 git clone <repo-url> osgop-parser
 cd osgop-parser
-python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install .
-uvicorn app.main:app --reload --port 8080
+uv sync
+uv run uvicorn app.main:app --reload --port 8080
 ```
 
 ### Переменные окружения (.env)
@@ -33,6 +32,13 @@ uvicorn app.main:app --reload --port 8080
 ```bash
 docker build -t osgop-parser .
 docker run -p 8080:8080 --env-file .env osgop-parser
+```
+
+## Разработка
+
+```bash
+uv sync            # установка зависимостей (включая dev)
+uv run pytest tests/ -v   # запуск тестов
 ```
 
 ## API-эндпоинты
@@ -133,7 +139,7 @@ PDF bytes
 |---|---|
 | **fastapi[standard]** | Веб-фреймворк |
 | **pymupdf** | Основной движок чтения PDF (лучше сохраняет пробелы) |
-| **pdfminer-six** | Fallback-движок PDF |
+| **pdfminer.six** | Fallback-движок PDF |
 | **pypdf** | Последний fallback + нарезка страниц |
 | **httpx** | Асинхронный HTTP-клиент для Element API |
 | **pandas** | Генерация CSV |
