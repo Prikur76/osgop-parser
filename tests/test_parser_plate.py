@@ -1,13 +1,16 @@
-from app.services.parser import OSGOPParser
+from app.services.field_extractors import parse_svedeniya
 
+
+# В реальных PDF госномера — кириллические; парсер нормализует их в латиницу.
 TEXT = """
 ТС:
-Гос. номер: A 225  PH  797
+Гос. номер: А 225  РН  797
 """
 
 
 def test_plate_extraction():
-    p = OSGOPParser()
-    plate = p._parse_svedeniya(TEXT)
+    res = parse_svedeniya(TEXT)
 
-    assert plate == "A225PH797"
+    assert res is not None
+    assert res["plate_cyr"] == "А225РН797"
+    assert res["plate_lat"] == "A225PH797"

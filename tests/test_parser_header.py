@@ -1,4 +1,4 @@
-from app.services.parser import OSGOPParser
+from app.services.field_extractors import parse_polis_header
 
 
 SAMPLE_TEXT = """
@@ -15,8 +15,7 @@ SAMPLE_TEXT = """
 
 
 def test_header_extraction():
-    p = OSGOPParser()
-    data = p._parse_polis_header(SAMPLE_TEXT)
+    data = parse_polis_header(SAMPLE_TEXT)
 
     assert data["contract_number"] == "ROSX22511271355000"
     assert data["insurer"] == "Акционерное общество Зетта Страхование"

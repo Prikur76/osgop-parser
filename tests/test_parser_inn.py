@@ -1,4 +1,4 @@
-from app.services.parser import OSGOPParser
+from app.services.field_extractors import parse_polis_header
 
 
 TEXT = """
@@ -13,8 +13,7 @@ TEXT = """
 
 
 def test_inn_extraction():
-    p = OSGOPParser()
-    insurer_inn, insured_inn = p._parse_polis_header(TEXT)
+    data = parse_polis_header(TEXT)
 
-    assert insurer_inn == "7702073683"
-    assert insured_inn == "7721751172"
+    assert data["insurer_inn"] == "7702073683"
+    assert data["insured_inn"] == "7721751172"

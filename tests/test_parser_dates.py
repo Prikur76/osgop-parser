@@ -1,4 +1,4 @@
-from app.services.parser import OSGOPParser
+from app.services.field_extractors import extract_dates_from_polis
 
 
 TEXT = """
@@ -9,8 +9,7 @@ TEXT = """
 """
 
 def test_date_extraction():
-    p = OSGOPParser()
-    data = p._extract_dates(TEXT)
+    data = extract_dates_from_polis(TEXT)
 
     assert data["contract_date"] == "2025-10-28"
     assert data["period_from"] == "2025-10-31"
