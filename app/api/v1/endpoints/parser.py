@@ -24,6 +24,17 @@ router = APIRouter()
 # Хранилище статусов фоновых задач (для продакшна заменить на Redis)
 _task_statuses: dict = {}
 
+MAX_FILE_SIZE = config.PDF_MAX_SIZE_MB * 1024 * 1024  # байт
+
+
+def _check_file_size(file: UploadFile) -> None:
+    """Проверить, что файл не превышает лимит."""
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Файл {file.filename} превышает максимальный размер {config.PDF_MAX_SIZE_MB} МБ"
+        )
+
 
 def _build_zip_response(save_result: dict, contract, zip_filename: str) -> StreamingResponse:
     """Создать ZIP-архив из сохранённых файлов."""
@@ -71,9 +82,9 @@ async def parse_json_download(file: UploadFile = File(...),
     parser = None
     
     try:
-        # Читаем PDF
+        _check_file_size(file)
         pdf_bytes = await file.read()
-        
+
         # Создаем клиент Element API если нужно
         element_client = await get_element_client() if use_element_api else None
         
@@ -117,8 +128,11 @@ async def parse_json_download(file: UploadFile = File(...),
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки: {str(e)}")
+        log.exception(f"Ошибка обработки: {e}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
     
     finally:
         # Закрываем ресурсы
@@ -139,6 +153,8 @@ async def parse_split_json(
     parser = None
 
     try:
+        _check_file_size(polis_file)
+        _check_file_size(svedeniya_file)
         polis_bytes = await polis_file.read()
         sved_bytes = await svedeniya_file.read()
 
@@ -178,8 +194,11 @@ async def parse_split_json(
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка раздельного парсинга: {str(e)}")
+        log.exception(f"Ошибка раздельного парсинга: {e}")
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
     finally:
         if parser:
@@ -224,8 +243,8 @@ async def parse_split_all_formats(
             zip_filename = f"OSGOP_{contract.contract_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
             return _build_zip_response(save_result, contract, zip_filename)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка раздельного парсинга: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
     finally:
         if parser:
@@ -314,8 +333,8 @@ async def parse_csv(file: UploadFile = File(...),
             headers={"Content-Disposition": f"attachment; filename=osgop_{contract.contract_number}{suffix}.csv"}
         )
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
     
     finally:
         # Закрываем ресурсы
@@ -369,8 +388,8 @@ async def parse_and_save_csv(file: UploadFile = File(...),
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка сохранения CSV: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
     
     finally:
         # Закрываем ресурсы
@@ -421,8 +440,8 @@ async def parse_all_formats(file: UploadFile = File(...),
             zip_filename = f"OSGOP_{contract.contract_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
             return _build_zip_response(save_result, contract, zip_filename)
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка создания архива: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
     
     finally:
         # Закрываем ресурсы
@@ -513,8 +532,8 @@ async def parse_csv_only(file: UploadFile = File(...),
         else:
             raise HTTPException(status_code=400, detail="Не выбран ни один формат CSV")
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка создания CSV: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
     
     finally:
         # Закрываем ресурсы
@@ -698,8 +717,8 @@ async def parse_batch_csv(files: List[UploadFile] = File(...),
                 headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
             )
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка пакетной обработки: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
     
     finally:
         # Закрываем ресурсы
