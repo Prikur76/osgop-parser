@@ -4,6 +4,7 @@ import asyncio
 from typing import List, Optional, Tuple
 
 from app.core.config import config
+from app.core.exceptions import NoSegmentsFoundError, PDFParseError
 from app.models.contract import OSGOPContract, VehicleInfo
 from app.services.pdf_reader import extract_text_safe
 from app.services.segment_detector import detect_segments, normalize_page_text
@@ -52,8 +53,7 @@ class OSGOPParser:
             segments = detect_segments(normalized_pages)
 
             if not segments:
-                log.error("Не найдены сегменты в документе")
-                return [], []
+                raise NoSegmentsFoundError("Не найдены сегменты в документе")
 
             # 2. Определяем, где находится полис и сведения
             polis_segment = None
@@ -72,8 +72,7 @@ class OSGOPParser:
                     first_sved_text = "\n".join(normalized_pages[svedeniya_segments[0][0]:svedeniya_segments[0][1]])
                     header_data = parse_polis_header(first_sved_text)
                 else:
-                    log.error("Не найдены ни полис, ни сведения в документе")
-                    return [], []
+                    raise NoSegmentsFoundError("Не найдены ни полис, ни сведения в документе")
 
             # 3. Парсим полис
             if polis_segment:
@@ -135,9 +134,11 @@ class OSGOPParser:
             log.info(f"Успешно распарсен договор {contract.contract_number} с {len(vehicles)} ТС")
             return [contract], all_segments
 
+        except NoSegmentsFoundError:
+            raise
         except Exception as e:
-            log.error(f"Ошибка парсинга: {str(e)}", exc_info=True)
-            return [], []
+            log.exception(f"Ошибка парсинга: {e}")
+            raise PDFParseError(f"Ошибка парсинга: {e}") from e
 
     async def parse_split_files(
         self,
@@ -215,9 +216,11 @@ class OSGOPParser:
             log.info(f"Успешно распарсен договор {contract.contract_number} с {len(vehicles)} ТС (split mode)")
             return [contract], all_segments
 
+        except NoSegmentsFoundError:
+            raise
         except Exception as e:
-            log.error(f"Ошибка раздельного парсинга: {str(e)}", exc_info=True)
-            return [], []
+            log.exception(f"Ошибка раздельного парсинга: {e}")
+            raise PDFParseError(f"Ошибка раздельного парсинга: {e}") from e
 
     async def _extract_text_async(self, pdf_bytes: bytes) -> List[str]:
         """Асинхронное извлечение текста из PDF"""

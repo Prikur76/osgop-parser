@@ -17,6 +17,7 @@ from app.services.parser_factory import get_osgop_parser, close_osgop_parser_res
 from app.services.file_saver import FileSaver
 from app.services.element_api_client_async import ElementApiClientAsync
 from app.core.config import config
+from app.core.exceptions import AppError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -128,7 +129,7 @@ async def parse_json_download(file: UploadFile = File(...),
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
         
-    except HTTPException:
+    except (HTTPException, AppError):
         raise
     except Exception as e:
         log.exception(f"Ошибка обработки: {e}")
@@ -194,7 +195,7 @@ async def parse_split_json(
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
 
-    except HTTPException:
+    except (HTTPException, AppError):
         raise
     except Exception as e:
         log.exception(f"Ошибка раздельного парсинга: {e}")
