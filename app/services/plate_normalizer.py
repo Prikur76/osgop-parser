@@ -21,6 +21,16 @@ LAT_TO_CYR = {
 }
 
 
+def latin_to_cyrillic_text(text: str) -> str:
+    """Replace Latin lookalike chars with Cyrillic in arbitrary text."""
+    if not text:
+        return text
+    result = []
+    for ch in text.upper():
+        result.append(LAT_TO_CYR.get(ch, ch))
+    return ''.join(result)
+
+
 def to_cyr_full(plate: str) -> str:
     """Конвертация латиницы в кириллицу БЕЗ ПРОБЕЛОВ - с поддержкой всех форматов"""
     if not plate:
@@ -80,20 +90,5 @@ def normalize_plate(plate_cyr: str) -> str:
     
     # Конвертируем в латиницу
     plate_lat = to_lat_full(plate_clean)
-   
+
     return plate_lat
-
-
-def normalize_plate_for_api(plate: str) -> str:
-    """Нормализация для запроса в API 1С (кириллица без пробелов)"""
-    # Сначала в кириллицу
-    plate_cyr = to_cyr_full(plate)
-    # Убираем пробелы
-    plate_clean = plate_cyr.replace(' ', '')
-    return plate_clean
-
-
-def normalize_plate_for_storage(plate: str) -> str:
-    """Нормализация для хранения (латиница без пробелов)"""
-    plate_lat = normalize_plate(plate)
-    return plate_lat.upper().replace(' ', '')

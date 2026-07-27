@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from app.services.plate_normalizer import to_cyr_full, normalize_plate
+from app.services.plate_normalizer import latin_to_cyrillic_text, to_cyr_full, normalize_plate
 
 log = logging.getLogger(__name__)
 
@@ -218,7 +218,8 @@ def parse_svedeniya(text: str) -> Optional[Dict[str, Any]]:
     result = {}
 
     # УБРАТЬ ВСЕ ПРОБЕЛЫ для поиска слипшихся номеров
-    text_no_spaces = re.sub(r'\s+', '', text.upper())
+    text_normalized = latin_to_cyrillic_text(text)
+    text_no_spaces = re.sub(r'\s+', '', text_normalized)
 
     # Паттерны для госномеров БЕЗ ПРОБЕЛОВ
     plate_patterns = [
@@ -241,7 +242,7 @@ def parse_svedeniya(text: str) -> Optional[Dict[str, Any]]:
             r'[АВЕКМНОРСТУХ]\s*\d{3}\s*[АВЕКМНОРСТУХ]{2}\s*\d{2,3}',
             r'[АВЕКМНОРСТУХ]{2}\s*\d{5}'
         ]:
-            match = re.search(pattern, text.upper())
+            match = re.search(pattern, text_normalized)
             if match:
                 plate_match = re.sub(r'\s+', '', match.group(0))
                 log.debug(f"Найден госномер (с пробелами): {plate_match}")
