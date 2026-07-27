@@ -3,7 +3,7 @@
 import sqlite3
 import asyncio
 import logging
-import threading
+
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 

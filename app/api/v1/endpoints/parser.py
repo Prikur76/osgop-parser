@@ -531,9 +531,7 @@ async def parse_csv_only(file: UploadFile = File(...),
         
         # Если запрошено несколько файлов - возвращаем ZIP архив
         elif csv_files:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-                
+            with tempfile.TemporaryDirectory():
                 # Создаем ZIP архив
                 zip_filename = f"OSGOP_{contract.contract_number}_CSV_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
                 zip_buffer = io.BytesIO()

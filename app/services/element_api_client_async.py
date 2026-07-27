@@ -39,7 +39,6 @@ class ElementApiClientAsync:
     #   Поиск машины в Element по гос. номеру
     # ----------------------------------------------
     async def get_car_by_plate(self, plate: str, retries: int = 2) -> Optional[Dict[str, Any]]:
-        last_error = None
         for attempt in range(retries + 1):
             try:
                 url = f"{self.base_url}/hs/Car/v1/Get"
@@ -63,7 +62,6 @@ class ElementApiClientAsync:
                 return cars[0] if cars else None
 
             except Exception as e:
-                last_error = e
                 if attempt < retries:
                     await asyncio.sleep(1.0 * (attempt + 1))
                 else:
