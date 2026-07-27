@@ -63,12 +63,19 @@ class OSGOPParser:
                     svedeniya_segments.append((start, end))
 
             if not polis_segment:
-                log.error("Не найден полис в документе")
-                return [], []
+                # Fallback: нет POLIS-секции — пробуем извлечь заголовок из сведений
+                if svedeniya_segments:
+                    log.warning("Не найден полис в документе, извлекаю заголовок из сведений")
+                    first_sved_text = "\n".join(normalized_pages[svedeniya_segments[0][0]:svedeniya_segments[0][1]])
+                    header_data = parse_polis_header(first_sved_text)
+                else:
+                    log.error("Не найдены ни полис, ни сведения в документе")
+                    return [], []
 
             # 3. Парсим полис
-            polis_text = "\n".join(normalized_pages[polis_segment[0]:polis_segment[1]])
-            header_data = parse_polis_header(polis_text)
+            if polis_segment:
+                polis_text = "\n".join(normalized_pages[polis_segment[0]:polis_segment[1]])
+                header_data = parse_polis_header(polis_text)
 
             # 4. Парсим сведения и извлекаем госномера
             vehicles_data = []
@@ -115,7 +122,10 @@ class OSGOPParser:
 
             # 8. Формируем сегменты для сохранения (start, end)
             all_segments = []
-            all_segments.append((polis_segment[0], polis_segment[1]))
+            if polis_segment:
+                all_segments.append((polis_segment[0], polis_segment[1]))
+            else:
+                all_segments.append((0, 0))  # нет полиса — пустой сегмент
             for start, end in svedeniya_segments:
                 all_segments.append((start, end))
 
