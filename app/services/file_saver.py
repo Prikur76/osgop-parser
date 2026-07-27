@@ -101,7 +101,78 @@ class FileSaver:
         log.info(f"Сохранено файлов: {len(result['saved_files']['pdf'])} PDF, 1 JSON, 1-2 CSV")
         
         return result
-    
+
+    async def save_split(
+        self,
+        polis_pdf_bytes: bytes,
+        svedeniya_pdf_bytes: bytes,
+        contracts: List[OSGOPContract],
+        polis_segment: Tuple[int, int],
+        svedeniya_segments: List[Tuple[int, int]]
+    ) -> Dict[str, Any]:
+        """
+        Сохранение для раздельного режима: полис и сведения — разные PDF.
+
+        polis_segment — (start, end) страниц внутри polis_pdf_bytes.
+        svedeniya_segments — список (start, end) страниц внутри svedeniya_pdf_bytes.
+        """
+        if not contracts:
+            log.warning("Нет контрактов для сохранения")
+            return {}
+
+        contract = contracts[0]
+
+        result = {
+            "contract": contract.model_dump(),
+            "saved_files": {
+                "pdf": [],
+                "json": None,
+                "csv": None,
+                "csv_detailed": None
+            },
+            "statistics": {
+                "total_vehicles": len(contract.vehicles),
+                "vehicles_with_vin": sum(1 for v in contract.vehicles if v.vin),
+                "vehicles_with_car_info": sum(1 for v in contract.vehicles if v.car_info),
+                "parsing_date": datetime.now().isoformat()
+            }
+        }
+
+        pdf_save_tasks = []
+
+        # 1. Сохраняем полис из отдельного PDF
+        pdf_save_tasks.append(self._save_polis(polis_pdf_bytes, contract, polis_segment))
+
+        # 2. Сохраняем сведения из сведенческого PDF
+        for i, vehicle in enumerate(contract.vehicles):
+            if i < len(svedeniya_segments):
+                pdf_save_tasks.append(
+                    self._save_svedeniya(svedeniya_pdf_bytes, contract, vehicle, svedeniya_segments[i])
+                )
+            else:
+                log.warning(f"Нет сегмента для ТС {i+1} (всего: {len(svedeniya_segments)})")
+
+        if pdf_save_tasks:
+            pdf_results = await asyncio.gather(*pdf_save_tasks, return_exceptions=True)
+            for pdf_result in pdf_results:
+                if isinstance(pdf_result, Exception):
+                    log.error(f"Ошибка сохранения PDF: {pdf_result}")
+                elif pdf_result:
+                    result["saved_files"]["pdf"].append(pdf_result)
+
+        # 3. JSON
+        result["saved_files"]["json"] = await self._save_json(contract)
+
+        # 4. CSV
+        result["saved_files"]["csv"] = await self._save_csv(contract, include_car_info=False)
+
+        # 5. CSV детальный
+        if contract.vehicles and any(v.car_info for v in contract.vehicles):
+            result["saved_files"]["csv_detailed"] = await self._save_csv(contract, include_car_info=True)
+
+        log.info(f"Сохранено файлов (split): {len(result['saved_files']['pdf'])} PDF, 1 JSON, 1-2 CSV")
+        return result
+
     async def _save_csv(self, contract: OSGOPContract, include_car_info: bool = False) -> str:
         """
         Асинхронное сохранение данных в CSV.

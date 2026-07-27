@@ -126,6 +126,86 @@ class OSGOPParser:
             log.error(f"Ошибка парсинга: {str(e)}", exc_info=True)
             return [], []
 
+    async def parse_split_files(
+        self,
+        polis_pdf_bytes: bytes,
+        svedeniya_pdf_bytes: bytes
+    ) -> Tuple[List[OSGOPContract], List[Tuple[int, int]]]:
+        """Раздельный парсинг: полис и сведения как два отдельных PDF."""
+        try:
+            # --- Полис ---
+            polis_pages = await self._extract_text_async(polis_pdf_bytes)
+            log.info(f"Полис: загружено {len(polis_pages)} страниц")
+            polis_normalized = [normalize_page_text(p) for p in polis_pages]
+            header_data = parse_polis_header("\n".join(polis_normalized))
+
+            # --- Сведения ---
+            sved_pages = await self._extract_text_async(svedeniya_pdf_bytes)
+            log.info(f"Сведения: загружено {len(sved_pages)} страниц")
+            sved_normalized = [normalize_page_text(p) for p in sved_pages]
+
+            # Ищем SVEDENIYA-сегменты внутри сведенческого PDF
+            sved_raw = detect_segments(sved_normalized)
+
+            # Если detect_segments ничего не нашёл — fallback: весь текст как один блок
+            if not sved_raw:
+                log.warning("detect_segments не нашёл сегментов в сведениях, парсим весь текст как один блок")
+                sved_text = "\n".join(sved_normalized)
+                vehicle_data = parse_svedeniya(sved_text)
+                vehicles_data = [vehicle_data] if vehicle_data else []
+                sved_segments = [(0, len(sved_pages))]
+            else:
+                vehicles_data = []
+                sved_segments = []
+                for start, end, seg_type in sved_raw:
+                    if seg_type != "SVEDENIYA":
+                        continue
+                    sved_segments.append((start, end))
+                    sved_text = "\n".join(sved_normalized[start:end])
+                    vehicle_data = parse_svedeniya(sved_text)
+                    if vehicle_data:
+                        vehicles_data.append(vehicle_data)
+
+                if not vehicles_data:
+                    log.warning("Не найдены данные о ТС в сведениях")
+
+            # Дата из первого сведения
+            first_sved_text = "\n".join(sved_normalized[sved_segments[0][0]:sved_segments[0][1]])
+            sved_date = extract_contract_date_from_svedeniya(first_sved_text)
+            if sved_date:
+                self.contract_date_from_svedeniya = sved_date
+
+            # --- Обогащение через Element API ---
+            vehicles = await self._get_vehicles_info_from_element(vehicles_data)
+
+            # --- Сборка контракта ---
+            if not header_data.get("contract_date") and self.contract_date_from_svedeniya:
+                header_data["contract_date"] = self.contract_date_from_svedeniya
+
+            contract = OSGOPContract(
+                contract_number=header_data.get("contract_number"),
+                contract_date=header_data.get("contract_date"),
+                period_from=header_data.get("period_from"),
+                period_to=header_data.get("period_to"),
+                insurer=header_data.get("insurer"),
+                insurer_inn=header_data.get("insurer_inn"),
+                insured=header_data.get("insured"),
+                insured_inn=header_data.get("insured_inn"),
+                bonus=header_data.get("bonus"),
+                vehicles=vehicles
+            )
+
+            # Сегменты для FileSaver: полис (весь), сведения (блоки внутри svedeniya PDF)
+            all_segments = [(0, len(polis_pages))]
+            all_segments.extend(sved_segments)
+
+            log.info(f"Успешно распарсен договор {contract.contract_number} с {len(vehicles)} ТС (split mode)")
+            return [contract], all_segments
+
+        except Exception as e:
+            log.error(f"Ошибка раздельного парсинга: {str(e)}", exc_info=True)
+            return [], []
+
     async def _extract_text_async(self, pdf_bytes: bytes) -> List[str]:
         """Асинхронное извлечение текста из PDF"""
         # Выполняем CPU-bound операцию в отдельном потоке

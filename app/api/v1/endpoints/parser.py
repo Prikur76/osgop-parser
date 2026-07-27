@@ -100,6 +100,143 @@ async def parse_json_download(file: UploadFile = File(...),
             await element_client.close()
 
 
+@router.post("/parse/split/json")
+async def parse_split_json(
+    polis_file: UploadFile = File(..., description="PDF полиса"),
+    svedeniya_file: UploadFile = File(..., description="PDF сведений"),
+    use_element_api: bool = False
+):
+    """Раздельный парсинг: полис + сведения как два отдельных PDF → JSON."""
+    element_client = None
+    parser = None
+
+    try:
+        polis_bytes = await polis_file.read()
+        sved_bytes = await svedeniya_file.read()
+
+        element_client = await get_element_client() if use_element_api else None
+        parser = await get_osgop_parser(element_client)
+
+        contracts, segments = await parser.parse_split_files(polis_bytes, sved_bytes)
+
+        if not contracts:
+            return JSONResponse(
+                content={"error": "Не удалось распарсить документ"},
+                status_code=400
+            )
+
+        contract = contracts[0]
+
+        saver = FileSaver()
+        save_result = await saver.save_split(
+            polis_bytes, sved_bytes, contracts,
+            polis_segment=segments[0],
+            svedeniya_segments=segments[1:]
+        )
+
+        response_data = {
+            "contract": contract.model_dump(),
+            "saved_files": save_result["saved_files"],
+            "statistics": save_result["statistics"],
+            "element_upload": save_result.get("element_upload", {})
+        }
+
+        json_str = json.dumps(response_data, ensure_ascii=False, indent=2, default=str)
+        filename = f"OSGOP_{contract.contract_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        return Response(
+            content=json_str,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка раздельного парсинга: {str(e)}")
+
+    finally:
+        if parser:
+            await close_osgop_parser_resources(parser)
+        if element_client and not use_element_api:
+            await element_client.close()
+
+
+@router.post("/parse/split/all-formats")
+async def parse_split_all_formats(
+    polis_file: UploadFile = File(..., description="PDF полиса"),
+    svedeniya_file: UploadFile = File(..., description="PDF сведений"),
+    include_car_info: bool = True
+):
+    """Раздельный парсинг: полис + сведения как два отдельных PDF → ZIP."""
+    element_client = None
+    parser = None
+
+    try:
+        polis_bytes = await polis_file.read()
+        sved_bytes = await svedeniya_file.read()
+
+        element_client = await get_element_client()
+        parser = await get_osgop_parser(element_client)
+
+        contracts, segments = await parser.parse_split_files(polis_bytes, sved_bytes)
+
+        if not contracts:
+            raise HTTPException(status_code=400, detail="Не удалось распарсить документ")
+
+        contract = contracts[0]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            saver = FileSaver(base_dir=str(temp_path))
+            save_result = await saver.save_split(
+                polis_bytes, sved_bytes, contracts,
+                polis_segment=segments[0],
+                svedeniya_segments=segments[1:]
+            )
+
+            zip_filename = f"OSGOP_{contract.contract_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+            zip_buffer = io.BytesIO()
+
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                saved_files = save_result["saved_files"]
+
+                if saved_files["json"]:
+                    json_path = Path(saved_files["json"])
+                    if json_path.exists():
+                        zip_file.write(str(json_path), json_path.name)
+
+                if saved_files["csv"]:
+                    csv_path = Path(saved_files["csv"])
+                    if csv_path.exists():
+                        zip_file.write(str(csv_path), csv_path.name)
+
+                if saved_files.get("csv_detailed"):
+                    csv_detailed_path = Path(saved_files["csv_detailed"])
+                    if csv_detailed_path.exists():
+                        zip_file.write(str(csv_detailed_path), csv_detailed_path.name)
+
+                for pdf_file in saved_files["pdf"]:
+                    pdf_path = Path(pdf_file)
+                    if pdf_path.exists():
+                        zip_file.write(str(pdf_path), pdf_path.name)
+
+            zip_buffer.seek(0)
+
+            return StreamingResponse(
+                content=zip_buffer,
+                media_type="application/zip",
+                headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка раздельного парсинга: {str(e)}")
+
+    finally:
+        if parser:
+            await close_osgop_parser_resources(parser)
+        if element_client:
+            await element_client.close()
+
+
 @router.post("/parse/csv")
 async def parse_csv(file: UploadFile = File(...), 
                     include_car_info: bool = False,
