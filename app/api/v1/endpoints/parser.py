@@ -104,7 +104,7 @@ async def parse_json_download(file: UploadFile = File(...),
 async def parse_split_json(
     polis_file: UploadFile = File(..., description="PDF полиса"),
     svedeniya_file: UploadFile = File(..., description="PDF сведений"),
-    use_element_api: bool = False
+    use_element_api: bool = True
 ):
     """Раздельный парсинг: полис + сведения как два отдельных PDF → JSON."""
     element_client = None
