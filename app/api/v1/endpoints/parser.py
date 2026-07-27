@@ -59,6 +59,45 @@ def _build_zip_response(save_result: dict, contract, zip_filename: str) -> Strea
     )
 
 
+async def _upload_svedeniya_to_element(
+    element_client: ElementApiClientAsync,
+    contract,
+    saved_pdfs: list,
+) -> dict:
+    """Загружает сведенческие PDF в Element API для каждого ТС с Code."""
+    results = {"uploaded": 0, "failed": 0, "details": []}
+    # Индекс 0 — полис, индексы 1+ — сведения для каждого ТС
+    for i, vehicle in enumerate(contract.vehicles):
+        code = vehicle.car_info.get("code") if vehicle.car_info else None
+        if not code:
+            continue
+        pdf_index = i + 1  # +1 пропускаем полис
+        if pdf_index >= len(saved_pdfs):
+            continue
+        pdf_path = Path(saved_pdfs[pdf_index])
+        if not pdf_path.exists():
+            continue
+        try:
+            file_bytes = pdf_path.read_bytes()
+            filename = pdf_path.name
+            result = await element_client.add_file(
+                code=int(code), filename=filename, file_bytes=file_bytes,
+                filetype="OSGOP_SVEDENIYA",
+                comment=f"{contract.contract_number} / {vehicle.vehicle_plate_cyr}"
+            )
+            if result:
+                results["uploaded"] += 1
+                results["details"].append({"plate": vehicle.vehicle_plate_cyr, "status": "ok"})
+            else:
+                results["failed"] += 1
+                results["details"].append({"plate": vehicle.vehicle_plate_cyr, "status": "error"})
+        except Exception as e:
+            log.error(f"Ошибка загрузки в Element для {vehicle.vehicle_plate_cyr}: {e}")
+            results["failed"] += 1
+            results["details"].append({"plate": vehicle.vehicle_plate_cyr, "status": str(e)})
+    return results
+
+
 async def get_element_client() -> Optional[ElementApiClientAsync]:
     """Создает и возвращает клиент Element API если включен"""
     if config.ELEMENT_ENABLED:
@@ -75,9 +114,10 @@ async def get_element_client() -> Optional[ElementApiClientAsync]:
 
 
 @router.post("/parse/json")
-async def parse_json_download(file: UploadFile = File(...), 
+async def parse_json_download(file: UploadFile = File(...),
                               use_vin_in_filenames: bool = True,
-                              use_element_api: bool = True):
+                              use_element_api: bool = True,
+                              upload_to_element: bool = False):
     """Возвращает JSON файл для скачивания"""
     element_client = None
     parser = None
@@ -107,14 +147,21 @@ async def parse_json_download(file: UploadFile = File(...),
         saver = FileSaver()
        
         save_result = await saver.save_all(pdf_bytes, contracts, segments)
-        
+
+        # Загрузка в Element API (опционально)
+        element_upload = {}
+        if upload_to_element and element_client:
+            element_upload = await _upload_svedeniya_to_element(
+                element_client, contract, save_result["saved_files"]["pdf"]
+            )
+
         # Формируем ответ
         response_data = {
             "contract": contract.model_dump(),
             "saved_files": save_result["saved_files"],
             "use_vin_in_filenames": use_vin_in_filenames,
             "statistics": save_result["statistics"],
-            "element_upload": save_result.get("element_upload", {})
+            "element_upload": element_upload
         }
         
         # Создаем JSON файл для скачивания
@@ -147,7 +194,8 @@ async def parse_json_download(file: UploadFile = File(...),
 async def parse_split_json(
     polis_file: UploadFile = File(..., description="PDF полиса"),
     svedeniya_file: UploadFile = File(..., description="PDF сведений"),
-    use_element_api: bool = True
+    use_element_api: bool = True,
+    upload_to_element: bool = False
 ):
     """Раздельный парсинг: полис + сведения как два отдельных PDF → JSON."""
     element_client = None
@@ -179,11 +227,18 @@ async def parse_split_json(
             svedeniya_segments=segments[1:]
         )
 
+        # Загрузка в Element API
+        element_upload = {}
+        if upload_to_element and element_client:
+            element_upload = await _upload_svedeniya_to_element(
+                element_client, contract, save_result["saved_files"]["pdf"]
+            )
+
         response_data = {
             "contract": contract.model_dump(),
             "saved_files": save_result["saved_files"],
             "statistics": save_result["statistics"],
-            "element_upload": save_result.get("element_upload", {})
+            "element_upload": element_upload
         }
 
         json_str = json.dumps(response_data, ensure_ascii=False, indent=2, default=str)
