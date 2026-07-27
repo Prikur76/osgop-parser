@@ -8,3 +8,4 @@ docs
 .env
 .pytest_cache
 references
+plate_cache.db*

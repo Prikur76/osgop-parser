@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from app.services.element_api_client_async import ElementApiClientAsync
+from app.services.plate_cache import PlateCache
 from app.services.parser import OSGOPParser
 from app.core.config import config
 
@@ -25,15 +26,15 @@ async def get_osgop_parser(element_client: Optional[ElementApiClientAsync] = Non
                 base_url=config.ELEMENT_BASE_URL,
                 username=config.ELEMENT_USERNAME,
                 password=config.ELEMENT_PASSWORD,
-                enabled=config.ELEMENT_ENABLED
             ).init()
             log.info("Создан новый Element API клиент для парсера")
         except Exception as e:
             log.error(f"Ошибка создания Element API клиента: {e}")
             element_client = None
     
-    # Создаем парсер с клиентом Element API
-    parser = OSGOPParser(element_api_client=element_client)
+    # Создаем парсер с клиентом Element API и кэшем госномеров
+    cache = PlateCache(config.PLATE_CACHE_PATH)
+    parser = OSGOPParser(element_api_client=element_client, plate_cache=cache)
     return parser
 
 

@@ -30,6 +30,9 @@ class Config:
     ELEMENT_TIMEOUT = env.float("ELEMENT_TIMEOUT", 30.0)
     ELEMENT_VERIFY_SSL = _bool("ELEMENT_VERIFY_SSL", True)
 
+    # SQLite-кэш госномеров
+    PLATE_CACHE_PATH = env.str("PLATE_CACHE_PATH", "plate_cache.db")
+
     def validate(self) -> None:
         """Проверяет, что при включённом Element заданы все креды."""
         if not self.ELEMENT_ENABLED:

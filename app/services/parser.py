@@ -16,14 +16,16 @@ log = logging.getLogger(__name__)
 
 
 class OSGOPParser:
-    def __init__(self, element_api_client=None):
+    def __init__(self, element_api_client=None, plate_cache=None):
         """
         Инициализация парсера ОСГОП.
 
         Args:
             element_api_client: Асинхронный клиент для Element API (опционально)
+            plate_cache: Кэш госномеров PlateCache (опционально)
         """
         self.element_api_client = element_api_client
+        self.plate_cache = plate_cache
         self.contract_date_from_svedeniya = None
 
     # ====================== ПУБЛИЧНЫЕ МЕТОДЫ ============================
@@ -257,15 +259,32 @@ class OSGOPParser:
                 return None
 
             try:
-                # Ищем ТС в Element по русскому номеру
-                car_data = await self.element_api_client.get_car_by_plate(plate_cyr)
-
-                # Извлекаем информацию из Element
                 vin = None
                 car_info = None
 
+                # 1. Сначала проверяем локальный кэш
+                if self.plate_cache:
+                    cached = await self.plate_cache.get(plate_cyr)
+                    if cached:
+                        vin = cached.get("vin")
+                        car_info = {
+                            "model": cached.get("model", ""),
+                            "year": cached.get("year", ""),
+                            "code": cached.get("code", ""),
+                        }
+                        log.info(f"Взято из кэша: {plate_cyr} -> VIN: {vin or 'не найден'}")
+                        return VehicleInfo(
+                            vehicle_plate_cyr=plate_cyr,
+                            vehicle_plate_lat=plate_lat,
+                            vin=vin,
+                            car_info=car_info
+                        )
+
+                # 2. В кэше нет — идём в Element API
+                car_data = await self.element_api_client.get_car_by_plate(plate_cyr)
+
                 if car_data:
-                    # Извлекаем VIN (может называться по-разному в Element API)
+                    # Извлекаем VIN
                     vin = car_data.get("VIN") or car_data.get("vin")
                     if vin and isinstance(vin, str):
                         vin = vin.strip()
@@ -279,7 +298,10 @@ class OSGOPParser:
                         "code": car_data.get("Code") or car_data.get("code") or "",
                     }
 
-                # Создаем объект VehicleInfo
+                    # 3. Сохраняем в кэш для будущих запросов
+                    if self.plate_cache:
+                        await self.plate_cache.put(plate_cyr, car_data)
+
                 vehicle = VehicleInfo(
                     vehicle_plate_cyr=plate_cyr,
                     vehicle_plate_lat=plate_lat,
@@ -292,7 +314,6 @@ class OSGOPParser:
 
             except Exception as e:
                 log.error(f"Ошибка при обработке ТС {plate_lat} в Element: {e}")
-                # Создаем VehicleInfo без данных из API
                 vehicle = VehicleInfo(
                     vehicle_plate_cyr=plate_cyr,
                     vehicle_plate_lat=plate_lat,
