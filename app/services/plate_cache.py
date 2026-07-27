@@ -3,6 +3,7 @@
 import sqlite3
 import asyncio
 import logging
+import threading
 from contextlib import contextmanager
 from queue import Queue, Empty
 from datetime import datetime, timezone
@@ -30,9 +31,10 @@ class PlateCache:
     def __init__(self, db_path: str = "plate_cache.db"):
         self.db_path = db_path
         self._pool: Queue = Queue(maxsize=POOL_SIZE)
+        self._write_lock = threading.Lock()
 
         # Инициализируем БД
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(_INIT_SQL)
         for col in ["sts_series", "sts_number"]:
@@ -90,15 +92,16 @@ class PlateCache:
             code = car_data.get("Code") or car_data.get("code") or ""
             now = datetime.now(timezone.utc).isoformat()
 
-            with self._conn() as conn:
-                conn.execute(
-                    """INSERT OR REPLACE INTO plate_cache
-                       (plate_cyr, vin, sts_series, sts_number, model, year, code, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (plate_cyr, vin, str(sts_series), str(sts_number),
-                     str(model), str(year), str(code), now)
-                )
-                conn.commit()
+            with self._write_lock:
+                with self._conn() as conn:
+                    conn.execute(
+                        """INSERT OR REPLACE INTO plate_cache
+                           (plate_cyr, vin, sts_series, sts_number, model, year, code, updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (plate_cyr, vin, str(sts_series), str(sts_number),
+                         str(model), str(year), str(code), now)
+                    )
+                    conn.commit()
 
         await asyncio.to_thread(_put)
         log.debug(f"Кэш обновлён: {plate_cyr}")
