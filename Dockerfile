@@ -1,19 +1,18 @@
-# Build stage — установка зависимостей
+# Build stage
 FROM python:3.12-slim AS build
 WORKDIR /app
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir --user .
+RUN pip install --no-cache-dir .
 
 # Final stage
 FROM python:3.12-slim
 WORKDIR /app
-COPY --from=build /root/.local /root/.local
+COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
 COPY app ./app
-ENV PATH=/root/.local/bin:$PATH
 
-# Непривилегированный пользователь
-RUN addgroup --system app && adduser --system --ingroup app app
-RUN chown -R app:app /app
+RUN addgroup --system app && adduser --system --ingroup app app \
+    && chown -R app:app /app
 USER app
 
 EXPOSE 8080
