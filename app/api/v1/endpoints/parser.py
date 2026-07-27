@@ -280,6 +280,7 @@ async def parse_csv(file: UploadFile = File(...),
                 "vehicle_plate_cyr": vehicle.vehicle_plate_cyr,      # Кириллица
                 "vehicle_plate_lat": vehicle.vehicle_plate_lat,      # Латинница
                 "vin": vehicle.vin,
+                "sts": f"{vehicle.sts_series or ''}{vehicle.sts_number or ''}" or None,
             }
             
             # Добавляем информацию из API если нужно

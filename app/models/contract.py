@@ -7,6 +7,8 @@ class VehicleInfo(BaseModel):
     vehicle_plate_cyr: str = Field(..., description="Госномер в кириллице")
     vehicle_plate_lat: str = Field(..., description="Госномер в латинице (нормализованный)")
     vin: str | None = Field(None, description="VIN номер")
+    sts_series: str | None = Field(None, description="Серия СТС")
+    sts_number: str | None = Field(None, description="Номер СТС")
     car_info: Optional[Dict[str, Any]] = Field(None, description="Информация из API: марка, модель, год")
 
 

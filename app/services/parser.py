@@ -244,6 +244,8 @@ class OSGOPParser:
                     vehicle_plate_cyr=data.get("plate_cyr"),
                     vehicle_plate_lat=data.get("plate_lat"),
                     vin=None,
+                    sts_series=None,
+                    sts_number=None,
                     car_info=None
                 )
                 vehicles.append(vehicle)
@@ -260,6 +262,8 @@ class OSGOPParser:
 
             try:
                 vin = None
+                sts_series = None
+                sts_number = None
                 car_info = None
 
                 # 1. Сначала проверяем локальный кэш
@@ -267,6 +271,8 @@ class OSGOPParser:
                     cached = await self.plate_cache.get(plate_cyr)
                     if cached:
                         vin = cached.get("vin")
+                        sts_series = cached.get("sts_series")
+                        sts_number = cached.get("sts_number")
                         car_info = {
                             "model": cached.get("model", ""),
                             "year": cached.get("year", ""),
@@ -277,6 +283,8 @@ class OSGOPParser:
                             vehicle_plate_cyr=plate_cyr,
                             vehicle_plate_lat=plate_lat,
                             vin=vin,
+                            sts_series=sts_series,
+                            sts_number=sts_number,
                             car_info=car_info
                         )
 
@@ -290,6 +298,14 @@ class OSGOPParser:
                         vin = vin.strip()
                         if vin in ("", "0", "Нет данных"):
                             vin = None
+
+                    # Извлекаем СТС
+                    sts_series = car_data.get("STSSeries") or ""
+                    sts_number = car_data.get("STSNumber") or ""
+                    if sts_series:
+                        sts_series = str(sts_series).strip()
+                    if sts_number:
+                        sts_number = str(sts_number).strip()
 
                     # Собираем информацию об автомобиле
                     car_info = {
@@ -306,6 +322,8 @@ class OSGOPParser:
                     vehicle_plate_cyr=plate_cyr,
                     vehicle_plate_lat=plate_lat,
                     vin=vin,
+                    sts_series=sts_series or None,
+                    sts_number=sts_number or None,
                     car_info=car_info
                 )
 
@@ -318,6 +336,8 @@ class OSGOPParser:
                     vehicle_plate_cyr=plate_cyr,
                     vehicle_plate_lat=plate_lat,
                     vin=None,
+                    sts_series=None,
+                    sts_number=None,
                     car_info=None
                 )
                 log.info(f"Добавлен ТС (без данных из Element): {plate_cyr}")

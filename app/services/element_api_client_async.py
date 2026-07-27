@@ -50,12 +50,17 @@ class ElementApiClientAsync:
                 if not cars:
                     return None
 
-                cars_with_code = [c for c in cars if c.get("Code") not in (None, "", 0)]
+                # Выбираем ТС с самой свежей датой выдачи СТС
+                cars_with_date = [c for c in cars if c.get("STSIssueDate") and c["STSIssueDate"] != "0001-01-01T00:00:00"]
+                if cars_with_date:
+                    return max(cars_with_date, key=lambda c: c["STSIssueDate"])
 
+                # Fallback: по Code
+                cars_with_code = [c for c in cars if c.get("Code") not in (None, "", 0)]
                 if cars_with_code:
                     return max(cars_with_code, key=lambda c: int(c["Code"]))
 
-                return cars[0]
+                return cars[0] if cars else None
 
             except Exception as e:
                 last_error = e

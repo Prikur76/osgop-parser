@@ -198,6 +198,7 @@ class FileSaver:
                 "Госномер (рус)",
                 "Госномер (англ)",
                 "VIN код",
+                "СТС",
             ]
             
             if include_car_info:
@@ -221,6 +222,7 @@ class FileSaver:
                     "Госномер (рус)": vehicle.vehicle_plate_cyr,
                     "Госномер (англ)": vehicle.vehicle_plate_lat,
                     "VIN код": vehicle.vin,
+                    "СТС": f"{vehicle.sts_series or ''}{vehicle.sts_number or ''}" or None,
                 }
                 
                 if include_car_info and vehicle.car_info:
