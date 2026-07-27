@@ -77,6 +77,25 @@ SQLite, WAL-режим, отдельное соединение на кажды�
 - **Element upload**: `add_file()` реализован, но не вызывается из эндпоинтов
 - **Кэш**: при изменении схемы БД старый файл `plate_cache.db*` нужно удалить
 
+## Диагностика типовых проблем
+
+### VIN не определяется
+1. `Element API клиент не инициализирован` → проверить `.env`: `ELEMENT_ENABLED=true`
+2. `.env` с кавычками/пробелами → `ELEMENT_ENABLED='True '` парсится как `False`
+3. OCR выдал латиницу → `latin_to_cyrillic_text()` в `plate_normalizer.py`
+4. Rate-limit → семафор `ELEMENT_CONCURRENCY=3` + retry в `element_api_client_async.py`
+5. ТС нет в базе → VIN `null`, имя файла по госномеру — нормально
+
+### Ошибки парсинга
+- `NoSegmentsFoundError` → PDF без POLIS и СВЕДЕНИЙ (неподдерживаемый формат)
+- `PDFReadError` → битый PDF (пересохранить из источника)
+- `return [], []` → старый код (заменён на typed exceptions)
+
+### Контейнер
+- `Permission denied: uvicorn` → пересобрать образ (uvicorn в `/usr/local/bin`)
+- Порт занят → `docker run -p 8081:8080 ...`
+- `SQLite objects created in a thread` → старый код с пулом (исправлен на connection-per-call)
+
 ## Запуск тестов
 
 ```bash
