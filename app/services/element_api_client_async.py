@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import httpx
 import logging
@@ -37,26 +38,33 @@ class ElementApiClientAsync:
     # ----------------------------------------------
     #   Поиск машины в Element по гос. номеру
     # ----------------------------------------------
-    async def get_car_by_plate(self, plate: str) -> Optional[Dict[str, Any]]:
-        try:
-            url = f"{self.base_url}/hs/Car/v1/Get"
-            r = await self.client.get(url, params={"num": plate})
-            r.raise_for_status()
+    async def get_car_by_plate(self, plate: str, retries: int = 2) -> Optional[Dict[str, Any]]:
+        last_error = None
+        for attempt in range(retries + 1):
+            try:
+                url = f"{self.base_url}/hs/Car/v1/Get"
+                r = await self.client.get(url, params={"num": plate})
+                r.raise_for_status()
 
-            cars = r.json()
-            if not cars:
-                return None
+                cars = r.json()
+                if not cars:
+                    return None
 
-            cars_with_code = [c for c in cars if c.get("Code") not in (None, "", 0)]
+                cars_with_code = [c for c in cars if c.get("Code") not in (None, "", 0)]
 
-            if cars_with_code:
-                return max(cars_with_code, key=lambda c: int(c["Code"]))
+                if cars_with_code:
+                    return max(cars_with_code, key=lambda c: int(c["Code"]))
 
-            return cars[0]
+                return cars[0]
 
-        except Exception as e:
-            logger.error(f"Element: get_car_by_plate error: {e}")
-            return None
+            except Exception as e:
+                last_error = e
+                if attempt < retries:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                else:
+                    logger.error(f"Element: get_car_by_plate error for {plate}: {e}")
+
+        return None
 
     # ----------------------------------------------
     #   Добавить файл в Element (base64 → файл)

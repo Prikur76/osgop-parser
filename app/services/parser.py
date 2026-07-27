@@ -323,10 +323,14 @@ class OSGOPParser:
                 log.info(f"Добавлен ТС (без данных из Element): {plate_cyr}")
                 return vehicle
 
-        # Создаем задачи для всех ТС
-        tasks = [process_vehicle(data) for data in vehicles_data]
+        # Создаем задачи для всех ТС с ограничением конкурентности (не больше 3 одновременных запросов к API)
+        semaphore = asyncio.Semaphore(3)
 
-        # Запускаем параллельно
+        async def process_with_limit(data: dict) -> Optional[VehicleInfo]:
+            async with semaphore:
+                return await process_vehicle(data)
+
+        tasks = [process_with_limit(data) for data in vehicles_data]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Обрабатываем результаты
