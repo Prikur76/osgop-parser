@@ -1,10 +1,9 @@
 import logging
-import pypdf
-import fitz
-
 from io import BytesIO
 from typing import List
-from pdfminer.high_level import extract_text as pdfminer_extract_text
+
+import fitz
+import pypdf
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +80,8 @@ def extract_with_pdfminer(pdf_bytes: bytes) -> List[str]:
     """
     Fallback: извлечение через pdfminer.six.
     """
+    from pdfminer.high_level import extract_text as pdfminer_extract_text
+
     try:
         text = pdfminer_extract_text(BytesIO(pdf_bytes)) or ""
         if not text.strip():

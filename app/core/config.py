@@ -33,6 +33,9 @@ class Config:
     # SQLite-кэш госномеров
     PLATE_CACHE_PATH = env.str("PLATE_CACHE_PATH", "plate_cache.db")
 
+    # Element API
+    ELEMENT_CONCURRENCY = env.int("ELEMENT_CONCURRENCY", 3)
+
     def validate(self) -> None:
         """Проверяет, что при включённом Element заданы все креды."""
         if not self.ELEMENT_ENABLED:

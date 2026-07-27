@@ -3,6 +3,7 @@ import re
 import asyncio
 from typing import List, Optional, Tuple
 
+from app.core.config import config
 from app.models.contract import OSGOPContract, VehicleInfo
 from app.services.pdf_reader import extract_text_safe
 from app.services.segment_detector import detect_segments, normalize_page_text
@@ -344,7 +345,7 @@ class OSGOPParser:
                 return vehicle
 
         # Создаем задачи для всех ТС с ограничением конкурентности (не больше 3 одновременных запросов к API)
-        semaphore = asyncio.Semaphore(3)
+        semaphore = asyncio.Semaphore(config.ELEMENT_CONCURRENCY)
 
         async def process_with_limit(data: dict) -> Optional[VehicleInfo]:
             async with semaphore:

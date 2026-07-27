@@ -5,6 +5,8 @@ import zipfile
 import io
 import asyncio
 
+import logging
+
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -16,7 +18,11 @@ from app.services.file_saver import FileSaver
 from app.services.element_api_client_async import ElementApiClientAsync
 from app.core.config import config
 
+log = logging.getLogger(__name__)
 router = APIRouter()
+
+# Хранилище статусов фоновых задач (для продакшна заменить на Redis)
+_task_statuses: dict = {}
 
 
 async def get_element_client() -> Optional[ElementApiClientAsync]:
@@ -30,7 +36,7 @@ async def get_element_client() -> Optional[ElementApiClientAsync]:
             ).init()
             return client
         except Exception as e:
-            print(f"Ошибка создания Element API клиента: {e}")
+            log.error(f"Ошибка создания Element API клиента: {e}")
     return None
 
 
@@ -759,13 +765,10 @@ async def parse_async_batch(files: List[UploadFile] = File(...),
     from uuid import uuid4
     
     task_id = str(uuid4())
-    
-    # Хранилище для статусов задач (в реальном приложении используйте Redis или БД)
-    task_statuses = {}
-    
+
     async def process_batch_task(task_id: str, files: List[UploadFile]):
         """Фоновая задача для пакетной обработки"""
-        task_statuses[task_id] = {
+        _task_statuses[task_id] = {
             "status": "processing",
             "total": len(files),
             "processed": 0,
@@ -790,36 +793,36 @@ async def parse_async_batch(files: List[UploadFile] = File(...),
                     contracts, _ = await parser.parse_with_segments(pdf_bytes)
                     
                     if contracts:
-                        task_statuses[task_id]["successful"] += 1
-                        task_statuses[task_id]["results"].append({
+                        _task_statuses[task_id]["successful"] += 1
+                        _task_statuses[task_id]["results"].append({
                             "filename": file.filename,
                             "status": "success",
                             "contract_number": contracts[0].contract_number,
                             "vehicles_count": len(contracts[0].vehicles)
                         })
                     else:
-                        task_statuses[task_id]["failed"] += 1
-                        task_statuses[task_id]["results"].append({
+                        _task_statuses[task_id]["failed"] += 1
+                        _task_statuses[task_id]["results"].append({
                             "filename": file.filename,
                             "status": "failed",
                             "error": "Не удалось распарсить документ"
                         })
                     
                 except Exception as e:
-                    task_statuses[task_id]["failed"] += 1
-                    task_statuses[task_id]["results"].append({
+                    _task_statuses[task_id]["failed"] += 1
+                    _task_statuses[task_id]["results"].append({
                         "filename": file.filename,
                         "status": "error",
                         "error": str(e)
                     })
                 
-                task_statuses[task_id]["processed"] = i
+                _task_statuses[task_id]["processed"] = i
                 
-            task_statuses[task_id]["status"] = "completed"
+            _task_statuses[task_id]["status"] = "completed"
             
         except Exception as e:
-            task_statuses[task_id]["status"] = "error"
-            task_statuses[task_id]["error"] = str(e)
+            _task_statuses[task_id]["status"] = "error"
+            _task_statuses[task_id]["error"] = str(e)
             
         finally:
             # Закрываем ресурсы
@@ -842,10 +845,6 @@ async def parse_async_batch(files: List[UploadFile] = File(...),
 @router.get("/parser/tasks/{task_id}")
 async def get_task_status(task_id: str):
     """Получить статус фоновой задачи"""
-    # В реальном приложении получайте из Redis/БД
-    task_statuses = {}  # Это временное хранилище
-    
-    if task_id not in task_statuses:
+    if task_id not in _task_statuses:
         raise HTTPException(status_code=404, detail="Задача не найдена")
-    
-    return task_statuses[task_id]
+    return _task_statuses[task_id]

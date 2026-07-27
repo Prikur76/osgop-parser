@@ -10,6 +10,12 @@ WORKDIR /app
 COPY --from=build /root/.local /root/.local
 COPY app ./app
 ENV PATH=/root/.local/bin:$PATH
+
+# Непривилегированный пользователь
+RUN addgroup --system app && adduser --system --ingroup app app
+RUN chown -R app:app /app
+USER app
+
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "from urllib.request import urlopen; urlopen('http://localhost:8080/health')"

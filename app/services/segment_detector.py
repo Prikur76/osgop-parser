@@ -6,6 +6,21 @@ from typing import List, Tuple
 
 log = logging.getLogger(__name__)
 
+_POLIS_START = r'ПОЛИС\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ\s+ГРАЖДАНСКОЙ\s+ОТВЕТСТВЕННОСТИ\s+ПЕРЕВОЗЧИКА'
+_SVED_START = r'СВЕДЕНИЯ\s+О\s+ДОГОВОРЕ\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ\s+ГРАЖДАНСКОЙ\s+ОТВЕТСТВЕННОСТИ\s+ПЕРЕВОЗЧИКА'
+_END_PATTERNS = [r'СВЕДЕНИЯ\s+О\s+ДОГОВОРЕ', r'ПОЛИС\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ']
+
+
+def _find_segment_end(pages: List[str], start: int, total: int) -> int:
+    """Находит конец сегмента: первая страница с началом другого сегмента или конец документа."""
+    i = start + 1
+    while i < total:
+        page = pages[i].upper()
+        if any(re.search(p, page) for p in _END_PATTERNS):
+            break
+        i += 1
+    return i
+
 
 def detect_segments(pages: List[str]) -> List[Tuple[int, int, str]]:
     """Обнаружение сегментов документа: полис и сведения."""
@@ -16,30 +31,16 @@ def detect_segments(pages: List[str]) -> List[Tuple[int, int, str]]:
     while i < total_pages:
         page_text = pages[i].upper()
 
-        # Поиск начала ПОЛИСА
-        if re.search(r'ПОЛИС\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ\s+ГРАЖДАНСКОЙ\s+ОТВЕТСТВЕННОСТИ\s+ПЕРЕВОЗЧИКА', page_text):
-            start = i
-            i += 1
-            while i < total_pages:
-                next_page = pages[i].upper()
-                if re.search(r'СВЕДЕНИЯ\s+О\s+ДОГОВОРЕ', next_page) or \
-                   re.search(r'ПОЛИС\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ', next_page):
-                    break
-                i += 1
-            segments.append((start, i, "POLIS"))
+        if re.search(_POLIS_START, page_text):
+            end = _find_segment_end(pages, i, total_pages)
+            segments.append((i, end, "POLIS"))
+            i = end
             continue
 
-        # Поиск "СВЕДЕНИЯ О ДОГОВОРЕ"
-        if re.search(r'СВЕДЕНИЯ\s+О\s+ДОГОВОРЕ\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ\s+ГРАЖДАНСКОЙ\s+ОТВЕТСТВЕННОСТИ\s+ПЕРЕВОЗЧИКА', page_text):
-            start = i
-            i += 1
-            while i < total_pages:
-                next_page = pages[i].upper()
-                if re.search(r'СВЕДЕНИЯ\s+О\s+ДОГОВОРЕ', next_page) or \
-                   re.search(r'ПОЛИС\s+ОБЯЗАТЕЛЬНОГО\s+СТРАХОВАНИЯ', next_page):
-                    break
-                i += 1
-            segments.append((start, i, "SVEDENIYA"))
+        if re.search(_SVED_START, page_text):
+            end = _find_segment_end(pages, i, total_pages)
+            segments.append((i, end, "SVEDENIYA"))
+            i = end
             continue
 
         i += 1
