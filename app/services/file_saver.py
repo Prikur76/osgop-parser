@@ -352,11 +352,11 @@ class FileSaver:
     
     def _format_date_for_filename(self, date_str: Optional[str]) -> str:
         """
-        Форматирование даты для имени файла: YYmmdd.
+        Форматирование даты для имени файла: YYYYmmdd.
         Возвращает "000000" если дата не может быть распарсена.
         """
         if not date_str:
-            return "000000"
+            return "00000000"
         
         try:
             date_str = date_str.split('T')[0]
@@ -371,15 +371,15 @@ class FileSaver:
             for fmt in formats:
                 try:
                     dt = datetime.strptime(date_str, fmt)
-                    return dt.strftime("%y%m%d")
+                    return dt.strftime("%Y%m%d")
                 except ValueError:
                     continue
             
-            return "000000"
+            return "00000000"
             
         except Exception as e:
             log.warning(f"Ошибка форматирования даты '{date_str}': {e}")
-            return "000000"
+            return "00000000"
     
     def _sanitize_filename(self, filename: str) -> str:
         """

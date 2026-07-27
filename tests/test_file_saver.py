@@ -83,6 +83,6 @@ def test_sanitize_filename():
 def test_format_date_for_filename():
     """_format_date_for_filename должен форматировать даты."""
     saver = FileSaver()
-    assert saver._format_date_for_filename("2025-10-28") == "251028"
-    assert saver._format_date_for_filename(None) == "000000"
-    assert saver._format_date_for_filename("not-a-date") == "000000"
+    assert saver._format_date_for_filename("2025-10-28") == "20251028"
+    assert saver._format_date_for_filename(None) == "00000000"
+    assert saver._format_date_for_filename("not-a-date") == "00000000"
