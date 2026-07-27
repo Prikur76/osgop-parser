@@ -1,9 +1,16 @@
-FROM python:3.11-slim
-
+# Build stage — установка зависимостей
+FROM python:3.12-slim AS build
 WORKDIR /app
-COPY ./requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir --user .
 
-COPY ./app ./app
-
+# Final stage
+FROM python:3.12-slim
+WORKDIR /app
+COPY --from=build /root/.local /root/.local
+COPY app ./app
+ENV PATH=/root/.local/bin:$PATH
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "from urllib.request import urlopen; urlopen('http://localhost:8080/health')"
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
