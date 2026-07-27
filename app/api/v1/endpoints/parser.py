@@ -25,6 +25,28 @@ router = APIRouter()
 _task_statuses: dict = {}
 
 
+def _build_zip_response(save_result: dict, contract, zip_filename: str) -> StreamingResponse:
+    """Создать ZIP-архив из сохранённых файлов."""
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for key in ("json", "csv", "csv_detailed"):
+            path = save_result["saved_files"].get(key)
+            if path:
+                p = Path(path)
+                if p.exists():
+                    zf.write(str(p), p.name)
+        for pdf_file in save_result["saved_files"].get("pdf", []):
+            p = Path(pdf_file)
+            if p.exists():
+                zf.write(str(p), p.name)
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        content=zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
+    )
+
+
 async def get_element_client() -> Optional[ElementApiClientAsync]:
     """Создает и возвращает клиент Element API если включен"""
     if config.ELEMENT_ENABLED:
@@ -200,38 +222,7 @@ async def parse_split_all_formats(
             )
 
             zip_filename = f"OSGOP_{contract.contract_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-            zip_buffer = io.BytesIO()
-
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                saved_files = save_result["saved_files"]
-
-                if saved_files["json"]:
-                    json_path = Path(saved_files["json"])
-                    if json_path.exists():
-                        zip_file.write(str(json_path), json_path.name)
-
-                if saved_files["csv"]:
-                    csv_path = Path(saved_files["csv"])
-                    if csv_path.exists():
-                        zip_file.write(str(csv_path), csv_path.name)
-
-                if saved_files.get("csv_detailed"):
-                    csv_detailed_path = Path(saved_files["csv_detailed"])
-                    if csv_detailed_path.exists():
-                        zip_file.write(str(csv_detailed_path), csv_detailed_path.name)
-
-                for pdf_file in saved_files["pdf"]:
-                    pdf_path = Path(pdf_file)
-                    if pdf_path.exists():
-                        zip_file.write(str(pdf_path), pdf_path.name)
-
-            zip_buffer.seek(0)
-
-            return StreamingResponse(
-                content=zip_buffer,
-                media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
-            )
+            return _build_zip_response(save_result, contract, zip_filename)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка раздельного парсинга: {str(e)}")
@@ -427,45 +418,8 @@ async def parse_all_formats(file: UploadFile = File(...),
             # Сохраняем все файлы асинхронно
             save_result = await saver.save_all(pdf_bytes, contracts, segments)
             
-            # Создаем ZIP архив
             zip_filename = f"OSGOP_{contract.contract_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-            zip_buffer = io.BytesIO()
-            
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                # Добавляем все сохраненные файлы
-                saved_files = save_result["saved_files"]
-                
-                # JSON
-                if saved_files["json"]:
-                    json_path = Path(saved_files["json"])
-                    if json_path.exists():
-                        zip_file.write(str(json_path), json_path.name)
-                
-                # CSV
-                if saved_files["csv"]:
-                    csv_path = Path(saved_files["csv"])
-                    if csv_path.exists():
-                        zip_file.write(str(csv_path), csv_path.name)
-                
-                # CSV detailed (если есть)
-                if saved_files.get("csv_detailed"):
-                    csv_detailed_path = Path(saved_files["csv_detailed"])
-                    if csv_detailed_path.exists():
-                        zip_file.write(str(csv_detailed_path), csv_detailed_path.name)
-                
-                # PDF файлы
-                for pdf_file in saved_files["pdf"]:
-                    pdf_path = Path(pdf_file)
-                    if pdf_path.exists():
-                        zip_file.write(str(pdf_path), pdf_path.name)
-            
-            zip_buffer.seek(0)
-            
-            return StreamingResponse(
-                content=zip_buffer,
-                media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
-            )
+            return _build_zip_response(save_result, contract, zip_filename)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка создания архива: {str(e)}")
