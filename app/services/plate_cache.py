@@ -3,15 +3,10 @@
 import sqlite3
 import asyncio
 import logging
-import threading
-from contextlib import contextmanager
-from queue import Queue, Empty
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 log = logging.getLogger(__name__)
-
-POOL_SIZE = 3
 
 _INIT_SQL = """CREATE TABLE IF NOT EXISTS plate_cache (
     plate_cyr TEXT PRIMARY KEY,
@@ -30,11 +25,8 @@ class PlateCache:
 
     def __init__(self, db_path: str = "plate_cache.db"):
         self.db_path = db_path
-        self._pool: Queue = Queue(maxsize=POOL_SIZE)
-        self._write_lock = threading.Lock()
-
         # Инициализируем БД
-        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(_INIT_SQL)
         for col in ["sts_series", "sts_number"]:
@@ -45,27 +37,12 @@ class PlateCache:
         conn.commit()
         conn.close()
 
-    @contextmanager
-    def _conn(self):
-        """Взять соединение из пула, вернуть после использования."""
-        try:
-            conn = self._pool.get(block=False)
-        except Empty:
-            conn = sqlite3.connect(self.db_path)
-            conn.execute("PRAGMA journal_mode=WAL")
-        try:
-            yield conn
-        finally:
-            try:
-                self._pool.put_nowait(conn)
-            except Exception:
-                conn.close()
-
     async def get(self, plate_cyr: str) -> Optional[Dict[str, Any]]:
         """Получить кэшированные данные по госномеру или None."""
 
         def _get():
-            with self._conn() as conn:
+            conn = sqlite3.connect(self.db_path)
+            try:
                 row = conn.execute(
                     "SELECT vin, sts_series, sts_number, model, year, code "
                     "FROM plate_cache WHERE plate_cyr = ?",
@@ -77,6 +54,8 @@ class PlateCache:
                     "vin": row[0], "sts_series": row[1], "sts_number": row[2],
                     "model": row[3], "year": row[4], "code": row[5]
                 }
+            finally:
+                conn.close()
 
         return await asyncio.to_thread(_get)
 
@@ -92,29 +71,22 @@ class PlateCache:
             code = car_data.get("Code") or car_data.get("code") or ""
             now = datetime.now(timezone.utc).isoformat()
 
-            with self._write_lock:
-                with self._conn() as conn:
-                    conn.execute(
-                        """INSERT OR REPLACE INTO plate_cache
-                           (plate_cyr, vin, sts_series, sts_number, model, year, code, updated_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (plate_cyr, vin, str(sts_series), str(sts_number),
-                         str(model), str(year), str(code), now)
-                    )
-                    conn.commit()
+            conn = sqlite3.connect(self.db_path)
+            try:
+                conn.execute(
+                    """INSERT OR REPLACE INTO plate_cache
+                       (plate_cyr, vin, sts_series, sts_number, model, year, code, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (plate_cyr, vin, str(sts_series), str(sts_number),
+                     str(model), str(year), str(code), now)
+                )
+                conn.commit()
+            finally:
+                conn.close()
 
         await asyncio.to_thread(_put)
         log.debug(f"Кэш обновлён: {plate_cyr}")
 
     async def close(self) -> None:
-        """Закрыть все соединения в пуле."""
-
-        def _close():
-            while True:
-                try:
-                    conn = self._pool.get(block=False)
-                    conn.close()
-                except Empty:
-                    break
-
-        await asyncio.to_thread(_close)
+        """Соединения закрываются после каждого вызова — нечего закрывать."""
+        pass
