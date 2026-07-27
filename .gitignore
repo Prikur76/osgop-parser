@@ -218,3 +218,7 @@ __marimo__/
 output/
 *.zip
 plate_cache.db*
+
+.claude/
+docs/
+references/
